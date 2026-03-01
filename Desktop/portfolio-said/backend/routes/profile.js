@@ -1,50 +1,45 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 const Profile = require('../models/Profile');
 const authMiddleware = require('../middleware/auth');
 
-// ===== CHEMINS ABSOLUS (clé du problème) =====
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
-const PHOTOS_DIR = path.join(UPLOADS_DIR, 'photos');
-const CV_DIR = path.join(UPLOADS_DIR, 'cv');
-
-// Créer les dossiers si inexistants
-[UPLOADS_DIR, PHOTOS_DIR, CV_DIR].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+// ===== CONFIG CLOUDINARY =====
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// ===== CONFIG MULTER PHOTO =====
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, PHOTOS_DIR),
-  filename: (req, file, cb) => cb(null, 'photo_' + Date.now() + path.extname(file.originalname))
+// ===== MULTER PHOTO → CLOUDINARY =====
+const photoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/photos',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }]
+  }
 });
 
 const uploadPhotoMW = multer({
   storage: photoStorage,
-  fileFilter: (req, file, cb) => {
-    ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)
-      ? cb(null, true)
-      : cb(new Error('Image uniquement (jpg, png, webp)'));
-  },
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-// ===== CONFIG MULTER CV =====
-const cvStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, CV_DIR),
-  filename: (req, file, cb) => cb(null, 'cv_' + Date.now() + '.pdf')
+// ===== MULTER CV → CLOUDINARY =====
+const cvStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/cv',
+    allowed_formats: ['pdf'],
+    resource_type: 'raw'
+  }
 });
 
 const uploadCvMW = multer({
   storage: cvStorage,
-  fileFilter: (req, file, cb) => {
-    file.mimetype === 'application/pdf'
-      ? cb(null, true)
-      : cb(new Error('PDF uniquement'));
-  },
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
@@ -119,7 +114,6 @@ router.get('/', async (req, res) => {
     const profile = await getOrCreateProfile();
     res.json(profile);
   } catch (error) {
-    console.error('GET /profile:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
@@ -139,30 +133,26 @@ router.put('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST photo =====
+// ===== POST photo → Cloudinary =====
 router.post('/photo', authMiddleware, uploadPhotoMW.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
 
     const profile = await getOrCreateProfile();
 
-    // Supprimer l'ancienne photo
-    if (profile.photoUrl) {
-      const oldFile = path.basename(profile.photoUrl);
-      const oldPath = path.join(PHOTOS_DIR, oldFile);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-        console.log('🗑️ Ancienne photo supprimée:', oldFile);
-      }
+    // Supprimer ancienne photo sur Cloudinary
+    if (profile.photoPublicId) {
+      await cloudinary.uploader.destroy(profile.photoPublicId);
+      console.log('🗑️ Ancienne photo supprimée de Cloudinary');
     }
 
-    const photoUrl = '/uploads/photos/' + req.file.filename;
-    profile.photoUrl = photoUrl;
+    // req.file.path = URL Cloudinary directe
+    profile.photoUrl = req.file.path;
+    profile.photoPublicId = req.file.filename;
     await profile.save();
 
-    console.log('✅ Photo sauvegardée:', photoUrl);
-    console.log('📁 Fichier physique:', req.file.path);
-    res.json({ message: 'Photo uploadée', photoUrl });
+    console.log('✅ Photo uploadée sur Cloudinary:', req.file.path);
+    res.json({ message: 'Photo uploadée', photoUrl: req.file.path });
   } catch (error) {
     console.error('POST /photo:', error.message);
     res.status(500).json({ message: error.message });
@@ -173,11 +163,11 @@ router.post('/photo', authMiddleware, uploadPhotoMW.single('photo'), async (req,
 router.delete('/photo', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.photoUrl) {
-      const oldPath = path.join(PHOTOS_DIR, path.basename(profile.photoUrl));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (profile.photoPublicId) {
+      await cloudinary.uploader.destroy(profile.photoPublicId);
     }
     profile.photoUrl = '';
+    profile.photoPublicId = '';
     await profile.save();
     res.json({ message: 'Photo supprimée' });
   } catch (error) {
@@ -185,20 +175,17 @@ router.delete('/photo', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST CV =====
+// ===== POST CV → Cloudinary =====
 router.post('/cv', authMiddleware, uploadCvMW.single('cv'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
 
     const profile = await getOrCreateProfile();
 
-    // Supprimer l'ancien CV
-    if (profile.cv && profile.cv.filename) {
-      const oldPath = path.join(CV_DIR, profile.cv.filename);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-        console.log('🗑️ Ancien CV supprimé');
-      }
+    // Supprimer ancien CV sur Cloudinary
+    if (profile.cv && profile.cv.publicId) {
+      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
+      console.log('🗑️ Ancien CV supprimé de Cloudinary');
     }
 
     const cvData = {
@@ -206,14 +193,15 @@ router.post('/cv', authMiddleware, uploadCvMW.single('cv'), async (req, res) => 
       originalName: req.body.customName
         ? (req.body.customName.endsWith('.pdf') ? req.body.customName : req.body.customName + '.pdf')
         : req.file.originalname,
-      path: '/uploads/cv/' + req.file.filename,
+      path: req.file.path, // URL Cloudinary
+      publicId: req.file.filename,
       uploadedAt: new Date()
     };
 
     profile.cv = cvData;
     await profile.save();
 
-    console.log('✅ CV sauvegardé:', cvData.filename);
+    console.log('✅ CV uploadé sur Cloudinary:', cvData.path);
     res.json({ message: 'CV uploadé', cv: cvData });
   } catch (error) {
     console.error('POST /cv:', error.message);
@@ -239,9 +227,8 @@ router.put('/cv/rename', authMiddleware, async (req, res) => {
 router.delete('/cv', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.cv && profile.cv.filename) {
-      const oldPath = path.join(CV_DIR, profile.cv.filename);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (profile.cv && profile.cv.publicId) {
+      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
     }
     profile.cv = null;
     await profile.save();
@@ -251,32 +238,18 @@ router.delete('/cv', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== GET télécharger/prévisualiser CV =====
+// ===== GET télécharger CV =====
+// Avec Cloudinary, le CV est accessible directement via son URL
+// Cette route redirige vers l'URL Cloudinary
 router.get('/cv/download', async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-
-    if (!profile.cv || !profile.cv.filename) {
+    if (!profile.cv || !profile.cv.path) {
       return res.status(404).json({ message: 'Aucun CV disponible' });
     }
-
-    const filePath = path.join(CV_DIR, profile.cv.filename);
-    console.log('📄 Tentative accès CV:', filePath);
-
-    if (!fs.existsSync(filePath)) {
-      console.error('❌ Fichier CV introuvable sur disque:', filePath);
-      // Nettoyer la base si le fichier n'existe plus
-      profile.cv = null;
-      await profile.save();
-      return res.status(404).json({ message: 'Fichier CV introuvable' });
-    }
-
-    const disposition = req.query.preview === 'true' ? 'inline' : 'attachment';
-    res.setHeader('Content-Disposition', `${disposition}; filename="${profile.cv.originalName}"`);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.sendFile(filePath);
+    // Rediriger vers l'URL Cloudinary
+    res.redirect(profile.cv.path);
   } catch (error) {
-    console.error('GET /cv/download:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
