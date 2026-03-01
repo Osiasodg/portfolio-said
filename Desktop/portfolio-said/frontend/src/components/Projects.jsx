@@ -12,7 +12,6 @@ const Projects = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  // Projets par défaut (depuis ton CV)
   const defaultProjects = [
     {
       _id: '1',
@@ -20,20 +19,23 @@ const Projects = () => {
       description: 'Jeu RPG en programmation orientée objet, renforçant les compétences en logique algorithmique et structuration du code.',
       technologies: ['Python', 'POO'],
       githubUrl: '#',
+      imageUrl: ''
     },
     {
       _id: '2',
       title: 'Idle Game interactif',
-      description: 'Développement d\'un Idle Game en JavaScript, HTML et CSS avec gestion d\'état dynamique et logique frontend.',
+      description: "Développement d'un Idle Game en JavaScript, HTML et CSS avec gestion d'état dynamique et logique frontend.",
       technologies: ['JavaScript', 'HTML', 'CSS'],
       githubUrl: '#',
+      imageUrl: ''
     },
     {
       _id: '3',
       title: 'Application full stack API REST',
-      description: 'Application avec intégration d\'API REST (Adzuna) et traitement de données JSON.',
+      description: "Application avec intégration d'API REST (Adzuna) et traitement de données JSON.",
       technologies: ['Python', 'REST API', 'JSON'],
       githubUrl: '#',
+      imageUrl: ''
     },
   ];
 
@@ -45,19 +47,41 @@ const Projects = () => {
         <h2 className="text-3xl font-bold text-center text-white mb-12">
           Mes <span className="text-blue-400">Projets</span>
         </h2>
-        
+
         {loading ? (
           <div className="text-center text-slate-400">Chargement...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayProjects.map(project => (
-              <div key={project._id} className="bg-slate-800 rounded-xl overflow-hidden hover:shadow-lg hover:shadow-blue-500/20 transition-all">
-                <div className="h-48 bg-gradient-to-br from-blue-600 to-slate-700 flex items-center justify-center">
-                  <span className="text-4xl">💻</span>
+              <div key={project._id}
+                className="bg-slate-800 rounded-xl overflow-hidden hover:shadow-lg hover:shadow-blue-500/20 transition-all hover:-translate-y-1 duration-300">
+
+                {/* IMAGE DU PROJET */}
+                <div className="h-48 overflow-hidden relative">
+                  {project.imageUrl ? (
+                    <img
+                      src={project.imageUrl}
+                      alt={project.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-600 to-slate-700 flex items-center justify-center">
+                      <span className="text-5xl">💻</span>
+                    </div>
+                  )}
+                  {/* Badge catégorie */}
+                  {project.category && (
+                    <span className="absolute top-3 right-3 bg-blue-600/80 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                      {project.category}
+                    </span>
+                  )}
                 </div>
+
                 <div className="p-6">
                   <h3 className="text-white font-bold text-lg mb-2">{project.title}</h3>
-                  <p className="text-slate-400 text-sm mb-4">{project.description}</p>
+                  <p className="text-slate-400 text-sm mb-4 line-clamp-3">{project.description}</p>
+
+                  {/* Technologies */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {project.technologies.map(tech => (
                       <span key={tech} className="bg-blue-600/30 text-blue-300 px-2 py-1 rounded text-xs">
@@ -65,16 +89,18 @@ const Projects = () => {
                       </span>
                     ))}
                   </div>
-                  <div className="flex gap-3">
+
+                  {/* Liens */}
+                  <div className="flex gap-3 pt-2 border-t border-slate-700">
                     {project.githubUrl && project.githubUrl !== '#' && (
                       <a href={project.githubUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-slate-400 hover:text-white text-sm transition-colors">
+                        className="text-slate-400 hover:text-white text-sm transition-colors flex items-center gap-1">
                         GitHub →
                       </a>
                     )}
                     {project.liveUrl && (
                       <a href={project.liveUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
+                        className="text-blue-400 hover:text-blue-300 text-sm transition-colors flex items-center gap-1">
                         Voir le site →
                       </a>
                     )}

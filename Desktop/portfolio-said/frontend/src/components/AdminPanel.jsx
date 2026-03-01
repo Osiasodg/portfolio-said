@@ -1,22 +1,12 @@
 // AdminPanel.jsx — Version complète avec recadrage photo et gestion CV
 import { useState, useEffect, useRef } from 'react';
-import api, {
+import {
   getStats, getProjects, createProject, updateProject, deleteProject, login,
   getProfile, updateProfile, updateSkills, updateExperiences, updateFormations, updateContacts
 } from '../services/api';
-import { FaEnvelope, FaPhone, FaLinkedin, FaGithub, FaGlobe } from 'react-icons/fa';
+import api from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-
-
-const getIcon = (label) => {
-  const l = label?.toLowerCase();
-  if (l?.includes('email') || l?.includes('mail')) return <FaEnvelope size={20} />;
-  if (l?.includes('téléphone') || l?.includes('phone') || l?.includes('tel')) return <FaPhone size={20} />;
-  if (l?.includes('linkedin')) return <FaLinkedin size={20} />;
-  if (l?.includes('github')) return <FaGithub size={20} />;
-  return <FaGlobe size={20} />;
-};
 
 // ===================== COMPOSANT RECADRAGE PHOTO =====================
 const PhotoCropper = ({ imageSrc, onCropDone, onCancel }) => {
@@ -244,7 +234,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setProfile(prev => ({ ...prev, photoUrl: res.data.photoUrl }));
-      alert('Photo mise à jour !');
+      alert('✅ Photo mise à jour !');
     } catch (err) {
       alert('Erreur upload photo : ' + (err.response?.data?.message || err.message));
     }
@@ -266,7 +256,7 @@ const AdminPanel = () => {
   const handleProfileSave = async () => {
     try {
       await updateProfile(profileForm);
-      alert('Profil mis à jour !');
+      alert('✅ Profil mis à jour !');
       loadData();
     } catch (err) {
       alert('Erreur : ' + err.message);
@@ -284,7 +274,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setCvInfo(res.data.cv);
-      alert(' CV uploadé avec succès !');
+      alert('✅ CV uploadé avec succès !');
     } catch (err) {
       alert('Erreur upload CV : ' + (err.response?.data?.message || err.message));
     }
@@ -309,7 +299,7 @@ const AdminPanel = () => {
       setCvInfo(res.data.cv);
       setCvRenaming(false);
       setCvNewName('');
-      alert(' CV renommé !');
+      alert('✅ CV renommé !');
     } catch {
       alert('Erreur renommage CV');
     }
@@ -333,6 +323,25 @@ const AdminPanel = () => {
     }
   };
 
+  // ===== IMAGE PROJET =====
+  const handleProjectImageUpload = async (projectId, file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      await api.post(`/projects/${projectId}/image`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      alert('✅ Image uploadée !');
+      loadData();
+    } catch (err) {
+      alert('Erreur upload image : ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleProjectImageDelete = async (projectId) => {
+    if (!window.confirm("Supprimer l'image de ce projet ?")) return;
+    try { await api.delete(`/projects/${projectId}/image`); alert('✅ Image supprimée'); loadData(); }
+    catch { alert('Erreur suppression image'); }
+  };
+
   // ===== COMPÉTENCES =====
   const handleAddSkill = () => {
     if (!newSkillCat.trim()) return;
@@ -342,7 +351,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveSkills = async () => {
-    try { await updateSkills(skills); alert(' Compétences sauvegardées !'); }
+    try { await updateSkills(skills); alert('✅ Compétences sauvegardées !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -362,7 +371,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveExperiences = async () => {
-    try { await updateExperiences(experiences); alert(' Expériences sauvegardées !'); }
+    try { await updateExperiences(experiences); alert('✅ Expériences sauvegardées !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -400,7 +409,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveContacts = async () => {
-    try { await updateContacts(contacts); alert(' Contacts sauvegardés !'); }
+    try { await updateContacts(contacts); alert('✅ Contacts sauvegardés !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -446,9 +455,7 @@ const AdminPanel = () => {
     { id: 'cv', label: '📄 Mon CV' },
   ];
 
-  // ✅ CORRECTION — URL Cloudinary directe
-  const currentPhoto = photoPreview || (profile?.photoUrl ? profile.photoUrl : null);
-  //const currentPhoto = photoPreview || (profile?.photoUrl ? `${API_URL}${profile.photoUrl}` : null);
+  const currentPhoto = photoPreview || (profile?.photoUrl ? `${API_URL}${profile.photoUrl}` : null);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -535,7 +542,7 @@ const AdminPanel = () => {
           <div className="grid md:grid-cols-2 gap-8">
             {/* Infos texte */}
             <div className="bg-slate-800 p-6 rounded-xl">
-              <h3 className="font-semibold mb-5"> Informations personnelles</h3>
+              <h3 className="font-semibold mb-5">✏️ Informations personnelles</h3>
               <div className="space-y-4">
                 <div>
                   <label className="text-slate-400 text-xs mb-1 block">Nom complet</label>
@@ -553,7 +560,7 @@ const AdminPanel = () => {
                     onChange={e => setProfileForm({ ...profileForm, description: e.target.value })} />
                 </div>
                 <button onClick={handleProfileSave} className={btnBlue + ' w-full py-3'}>
-                   Sauvegarder les infos
+                  💾 Sauvegarder les infos
                 </button>
               </div>
             </div>
@@ -635,13 +642,11 @@ const AdminPanel = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 mt-4">
-                    <a href={cvInfo.path} target="_blank" rel="noopener noreferrer"
-                    //<a href={`${API_URL}/api/profile/cv/download`} target="_blank" rel="noopener noreferrer"
+                    <a href={`${API_URL}/api/profile/cv/download`} target="_blank" rel="noopener noreferrer"
                       className={btnBlue}>
                       👁️ Prévisualiser
                     </a>
-                    <a href={cvInfo.path} download={cvInfo.originalName}
-                   // <a href={`${API_URL}/api/profile/cv/download`} download={cvInfo.originalName}
+                    <a href={`${API_URL}/api/profile/cv/download`} download={cvInfo.originalName}
                       className={btnGreen}>
                       📥 Télécharger
                     </a>
@@ -704,21 +709,48 @@ const AdminPanel = () => {
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                 {projects.length === 0 && <p className="text-slate-500 text-sm">Aucun projet.</p>}
                 {projects.map(p => (
-                  <div key={p._id} className="bg-slate-800 p-4 rounded-xl flex justify-between items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm">{p.title}</h4>
-                      <p className="text-slate-400 text-xs mt-1 truncate">{p.description}</p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {p.technologies.map(t => (
-                          <span key={t} className="bg-slate-700 text-blue-300 text-xs px-2 py-0.5 rounded">{t}</span>
-                        ))}
+                  <div key={p._id} className="bg-slate-800 rounded-xl overflow-hidden">
+                    {/* Zone image avec boutons au survol */}
+                    <div className="h-32 relative group">
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-600 to-slate-700 flex items-center justify-center">
+                          <span className="text-3xl">💻</span>
+                        </div>
+                      )}
+                      {/* Boutons visibles au survol */}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+                          📷 {p.imageUrl ? 'Changer' : 'Ajouter image'}
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={e => { if (e.target.files[0]) handleProjectImageUpload(p._id, e.target.files[0]); e.target.value = ''; }} />
+                        </label>
+                        {p.imageUrl && (
+                          <button onClick={() => handleProjectImageDelete(p._id)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                            🗑️ Supprimer
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={() => { setProjectForm({ title: p.title, description: p.description, technologies: p.technologies.join(', '), githubUrl: p.githubUrl || '', liveUrl: p.liveUrl || '' }); setEditingProjectId(p._id); }}
-                        className={btnGray}>✏️</button>
-                      <button onClick={async () => { if (window.confirm('Supprimer ?')) { await deleteProject(p._id); loadData(); } }}
-                        className={btnRed}>🗑️</button>
+                    {/* Infos projet */}
+                    <div className="p-4 flex justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm">{p.title}</h4>
+                        <p className="text-slate-400 text-xs mt-1 truncate">{p.description}</p>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {p.technologies.map(t => (
+                            <span key={t} className="bg-slate-700 text-blue-300 text-xs px-2 py-0.5 rounded">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => { setProjectForm({ title: p.title, description: p.description, technologies: p.technologies.join(', '), githubUrl: p.githubUrl || '', liveUrl: p.liveUrl || '' }); setEditingProjectId(p._id); }}
+                          className={btnGray}>✏️</button>
+                        <button onClick={async () => { if (window.confirm('Supprimer ?')) { await deleteProject(p._id); loadData(); } }}
+                          className={btnRed}>🗑️</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -882,7 +914,7 @@ const AdminPanel = () => {
                 {contacts.map((c, i) => (
                   <div key={i} className="bg-slate-800 p-4 rounded-xl flex justify-between items-center gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-blue-400">{getIcon(c.label)}</span>
+                      <span className="text-2xl">{c.icon}</span>
                       <div>
                         <p className="font-semibold text-sm">{c.label}</p>
                         <p className="text-slate-400 text-xs">{c.value}</p>
