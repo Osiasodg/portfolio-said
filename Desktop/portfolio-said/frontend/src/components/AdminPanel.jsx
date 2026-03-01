@@ -244,7 +244,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setProfile(prev => ({ ...prev, photoUrl: res.data.photoUrl }));
-      alert('✅ Photo mise à jour !');
+      alert('Photo mise à jour !');
     } catch (err) {
       alert('Erreur upload photo : ' + (err.response?.data?.message || err.message));
     }
@@ -266,7 +266,7 @@ const AdminPanel = () => {
   const handleProfileSave = async () => {
     try {
       await updateProfile(profileForm);
-      alert('✅ Profil mis à jour !');
+      alert('Profil mis à jour !');
       loadData();
     } catch (err) {
       alert('Erreur : ' + err.message);
@@ -284,7 +284,7 @@ const AdminPanel = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setCvInfo(res.data.cv);
-      alert('✅ CV uploadé avec succès !');
+      alert(' CV uploadé avec succès !');
     } catch (err) {
       alert('Erreur upload CV : ' + (err.response?.data?.message || err.message));
     }
@@ -309,7 +309,7 @@ const AdminPanel = () => {
       setCvInfo(res.data.cv);
       setCvRenaming(false);
       setCvNewName('');
-      alert('✅ CV renommé !');
+      alert(' CV renommé !');
     } catch {
       alert('Erreur renommage CV');
     }
@@ -342,7 +342,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveSkills = async () => {
-    try { await updateSkills(skills); alert('✅ Compétences sauvegardées !'); }
+    try { await updateSkills(skills); alert(' Compétences sauvegardées !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -362,7 +362,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveExperiences = async () => {
-    try { await updateExperiences(experiences); alert('✅ Expériences sauvegardées !'); }
+    try { await updateExperiences(experiences); alert(' Expériences sauvegardées !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -400,7 +400,7 @@ const AdminPanel = () => {
   };
 
   const handleSaveContacts = async () => {
-    try { await updateContacts(contacts); alert('✅ Contacts sauvegardés !'); }
+    try { await updateContacts(contacts); alert(' Contacts sauvegardés !'); }
     catch { alert('Erreur sauvegarde'); }
   };
 
@@ -446,7 +446,9 @@ const AdminPanel = () => {
     { id: 'cv', label: '📄 Mon CV' },
   ];
 
-  const currentPhoto = photoPreview || (profile?.photoUrl ? `${API_URL}${profile.photoUrl}` : null);
+  // ✅ CORRECTION — URL Cloudinary directe
+  const currentPhoto = photoPreview || (profile?.photoUrl ? profile.photoUrl : null);
+  //const currentPhoto = photoPreview || (profile?.photoUrl ? `${API_URL}${profile.photoUrl}` : null);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -533,7 +535,7 @@ const AdminPanel = () => {
           <div className="grid md:grid-cols-2 gap-8">
             {/* Infos texte */}
             <div className="bg-slate-800 p-6 rounded-xl">
-              <h3 className="font-semibold mb-5">✏️ Informations personnelles</h3>
+              <h3 className="font-semibold mb-5"> Informations personnelles</h3>
               <div className="space-y-4">
                 <div>
                   <label className="text-slate-400 text-xs mb-1 block">Nom complet</label>
@@ -551,7 +553,7 @@ const AdminPanel = () => {
                     onChange={e => setProfileForm({ ...profileForm, description: e.target.value })} />
                 </div>
                 <button onClick={handleProfileSave} className={btnBlue + ' w-full py-3'}>
-                  💾 Sauvegarder les infos
+                   Sauvegarder les infos
                 </button>
               </div>
             </div>
@@ -633,11 +635,13 @@ const AdminPanel = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 mt-4">
-                    <a href={`${API_URL}/api/profile/cv/download`} target="_blank" rel="noopener noreferrer"
+                    <a href={cvInfo.path} target="_blank" rel="noopener noreferrer"
+                    //<a href={`${API_URL}/api/profile/cv/download`} target="_blank" rel="noopener noreferrer"
                       className={btnBlue}>
                       👁️ Prévisualiser
                     </a>
-                    <a href={`${API_URL}/api/profile/cv/download`} download={cvInfo.originalName}
+                    <a href={cvInfo.path} download={cvInfo.originalName}
+                   // <a href={`${API_URL}/api/profile/cv/download`} download={cvInfo.originalName}
                       className={btnGreen}>
                       📥 Télécharger
                     </a>

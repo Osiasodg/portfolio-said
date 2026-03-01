@@ -26,7 +26,8 @@ const Hero = () => {
         {/* Photo de profil */}
         {profile.photoUrl ? (
           <img
-            src={`${API_URL}${profile.photoUrl}`}
+            src={profile.photoUrl}
+            // src={`${API_URL}${profile.photoUrl}`}
             alt="Photo de profil"
             className="w-60 h-60 rounded-full object-cover mx-auto mb-6 border-4 border-blue-400"
             onError={(e) => { e.target.style.display = 'none'; }}
