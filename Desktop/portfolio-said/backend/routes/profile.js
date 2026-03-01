@@ -194,7 +194,7 @@ router.post('/cv', authMiddleware, uploadCvMW.single('cv'), async (req, res) => 
         ? (req.body.customName.endsWith('.pdf') ? req.body.customName : req.body.customName + '.pdf')
         : req.file.originalname,
       path: req.file.path, // URL Cloudinary
-      publicId: req.file.filename,
+      publicId: req.file.filename.replace(/\s/g, ''),
       uploadedAt: new Date()
     };
 
@@ -247,14 +247,8 @@ router.get('/cv/download', async (req, res) => {
     if (!profile.cv || !profile.cv.path) {
       return res.status(404).json({ message: 'Aucun CV disponible' });
     }
-
-    // Télécharger depuis Cloudinary et renvoyer avec le bon nom
     const axios = require('axios');
-    let cvUrl = profile.cv.path;
-    if (!cvUrl.endsWith('.pdf')) cvUrl += '.pdf';
-
-    const response = await axios.get(cvUrl, { responseType: 'stream' });
-
+    const response = await axios.get(profile.cv.path, { responseType: 'stream' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${profile.cv.originalName}"`);
     response.data.pipe(res);
