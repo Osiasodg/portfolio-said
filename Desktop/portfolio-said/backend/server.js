@@ -15,7 +15,11 @@ const app = express();
 // Middlewares
 
 app.use(cors({
-  origin: ['https://portfolio-dit-blé.vercel.app', 'http://localhost:5173'],
+  origin: [
+    'https://portfolio-said-wheat.vercel.app',
+    'https://portfolio-said.vercel.app',
+    'http://localhost:5173'
+  ],
   credentials: true
 }));
 
