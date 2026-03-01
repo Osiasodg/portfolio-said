@@ -247,9 +247,19 @@ router.get('/cv/download', async (req, res) => {
     if (!profile.cv || !profile.cv.path) {
       return res.status(404).json({ message: 'Aucun CV disponible' });
     }
-    // Rediriger vers l'URL Cloudinary
-    res.redirect(profile.cv.path);
+
+    // Télécharger depuis Cloudinary et renvoyer avec le bon nom
+    const axios = require('axios');
+    let cvUrl = profile.cv.path;
+    if (!cvUrl.endsWith('.pdf')) cvUrl += '.pdf';
+
+    const response = await axios.get(cvUrl, { responseType: 'stream' });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${profile.cv.originalName}"`);
+    response.data.pipe(res);
   } catch (error) {
+    console.error('GET /cv/download:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
