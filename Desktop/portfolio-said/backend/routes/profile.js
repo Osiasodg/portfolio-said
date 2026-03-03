@@ -1,55 +1,52 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 const Profile = require('../models/Profile');
 const authMiddleware = require('../middleware/auth');
 
-// Config multer photo
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = 'uploads/photos/';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `photo_${Date.now()}${path.extname(file.originalname)}`);
+// ===== CONFIG CLOUDINARY =====
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// ===== MULTER PHOTO → CLOUDINARY =====
+const photoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/photos',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }]
   }
 });
+const uploadPhotoMW = multer({ storage: photoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-const uploadPhoto = multer({
-  storage: photoStorage,
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Image uniquement (jpg, png, webp)'));
-  },
-  limits: { fileSize: 5 * 1024 * 1024 }
-});
-
-// Config multer CV
-const cvStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = 'uploads/cv/';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `cv_${Date.now()}${path.extname(file.originalname)}`);
+// ===== MULTER CV → CLOUDINARY =====
+const cvStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/cv',
+    allowed_formats: ['pdf'],
+    resource_type: 'raw'
   }
 });
+const uploadCvMW = multer({ storage: cvStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const uploadCv = multer({
-  storage: cvStorage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') cb(null, true);
-    else cb(new Error('PDF uniquement'));
-  },
-  limits: { fileSize: 10 * 1024 * 1024 }
+// ===== MULTER IMAGE EXPÉRIENCE → CLOUDINARY =====
+const expImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/experiences',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1200, height: 750, crop: 'fill' }]
+  }
 });
+const uploadExpImageMW = multer({ storage: expImageStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Initialiser ou récupérer le profil
+// ===== INIT PROFIL =====
 const getOrCreateProfile = async () => {
   let profile = await Profile.findOne();
   if (!profile) {
@@ -68,38 +65,12 @@ const getOrCreateProfile = async () => {
         { category: 'Langues', items: ['Français C1', 'Anglais B1'] }
       ],
       experiences: [
-        {
-          title: 'Stage de perfectionnement',
-          company: 'SONAR',
-          location: 'Ouagadougou, Burkina Faso',
-          period: 'Fév 2025 – Mai 2025',
-          description: "Application Laravel full stack pour la gestion des bons d'achat.",
-          tech: ['Laravel', 'MySQL', 'PHP']
-        },
-        {
-          title: 'Stage de fin de cycle',
-          company: 'ONASER',
-          location: 'Ouagadougou, Burkina Faso',
-          period: 'Mar 2024 – Août 2024',
-          description: "Plateforme de suivi des missions en Java/MySQL.",
-          tech: ['Java', 'MySQL']
-        }
+        { title: 'Stage de perfectionnement', company: 'SONAR', location: 'Ouagadougou, Burkina Faso', period: 'Fév 2025 – Mai 2025', description: "Application Laravel full stack pour la gestion des bons d'achat.", tech: ['Laravel', 'MySQL', 'PHP'], images: [] },
+        { title: 'Stage de fin de cycle', company: 'ONASER', location: 'Ouagadougou, Burkina Faso', period: 'Mar 2024 – Août 2024', description: "Plateforme de suivi des missions en Java/MySQL.", tech: ['Java', 'MySQL'], images: [] }
       ],
       formations: [
-        {
-          title: 'Prépa Mastère Digital',
-          school: 'HETIC',
-          location: 'Montreuil, France',
-          period: 'Depuis Oct 2025',
-          description: 'Développement web, analyse de données, marketing digital.'
-        },
-        {
-          title: "Diplôme d'ingénieur en informatique",
-          school: 'Université Aube Nouvelle',
-          location: 'Ouagadougou',
-          period: '2021 – Déc 2024',
-          description: 'Option technologie du génie informatique.'
-        }
+        { title: 'Prépa Mastère Digital', school: 'HETIC', location: 'Montreuil, France', period: 'Depuis Oct 2025', description: 'Développement web, analyse de données, marketing digital.' },
+        { title: "Diplôme d'ingénieur en informatique", school: 'Université Aube Nouvelle', location: 'Ouagadougou', period: '2021 – Déc 2024', description: 'Option technologie du génie informatique.' }
       ],
       contacts: [
         { label: 'Email', value: 'ouedraogoosia4@gmail.com', icon: '📧', url: 'mailto:ouedraogoosia4@gmail.com' },
@@ -109,6 +80,7 @@ const getOrCreateProfile = async () => {
       ]
     });
     await profile.save();
+    console.log('✅ Profil créé en base de données');
   }
   return profile;
 };
@@ -138,32 +110,21 @@ router.put('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST photo =====
-router.post('/photo', authMiddleware, uploadPhoto.single('photo'), async (req, res) => {
+// ===== POST photo → Cloudinary =====
+router.post('/photo', authMiddleware, uploadPhotoMW.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
-
     const profile = await getOrCreateProfile();
-
-    // Supprimer l'ancienne photo si elle existe
-    if (profile.photoUrl) {
-      const oldPath = path.join(__dirname, '..', profile.photoUrl.replace(/^\//, ''));
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
+    if (profile.photoPublicId) {
+      await cloudinary.uploader.destroy(profile.photoPublicId);
     }
-
-    // Sauvegarder le chemin correct avec /
-    const photoPath = '/uploads/photos/' + req.file.filename;
-    profile.photoUrl = photoPath;
+    profile.photoUrl = req.file.path;
+    profile.photoPublicId = req.file.filename;
     await profile.save();
-
-    res.json({ 
-      message: 'Photo uploadée avec succès',
-      photoUrl: photoPath 
-    });
+    console.log('✅ Photo uploadée:', req.file.path);
+    res.json({ message: 'Photo uploadée', photoUrl: req.file.path });
   } catch (error) {
-    console.error('Erreur photo:', error);
+    console.error('POST /photo:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
@@ -172,11 +133,11 @@ router.post('/photo', authMiddleware, uploadPhoto.single('photo'), async (req, r
 router.delete('/photo', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.photoUrl) {
-      const oldPath = path.join(__dirname, '..', profile.photoUrl.replace(/^\//, ''));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (profile.photoPublicId) {
+      await cloudinary.uploader.destroy(profile.photoPublicId);
     }
     profile.photoUrl = '';
+    profile.photoPublicId = '';
     await profile.save();
     res.json({ message: 'Photo supprimée' });
   } catch (error) {
@@ -184,41 +145,40 @@ router.delete('/photo', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST CV upload =====
-router.post('/cv', authMiddleware, uploadCv.single('cv'), async (req, res) => {
+// ===== POST CV → Cloudinary =====
+router.post('/cv', authMiddleware, uploadCvMW.single('cv'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
-
     const profile = await getOrCreateProfile();
-
-    // Supprimer l'ancien CV si il existe
-    if (profile.cv && profile.cv.path) {
-      const oldPath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (profile.cv && profile.cv.publicId) {
+      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
     }
-
     const cvData = {
       filename: req.file.filename,
-      originalName: req.body.customName || req.file.originalname,
-      path: '/uploads/cv/' + req.file.filename,
+      originalName: req.body.customName
+        ? (req.body.customName.endsWith('.pdf') ? req.body.customName : req.body.customName + '.pdf')
+        : req.file.originalname,
+      path: req.file.path,
+      publicId: req.file.filename,
       uploadedAt: new Date()
     };
-
     profile.cv = cvData;
     await profile.save();
-
-    res.json({ message: 'CV uploadé avec succès', cv: cvData });
+    console.log('✅ CV uploadé:', cvData.path);
+    res.json({ message: 'CV uploadé', cv: cvData });
   } catch (error) {
+    console.error('POST /cv:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ===== PUT renommer le CV =====
+// ===== PUT renommer CV =====
 router.put('/cv/rename', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
     if (!profile.cv) return res.status(404).json({ message: 'Aucun CV trouvé' });
-    profile.cv.originalName = req.body.name;
+    const newName = req.body.name;
+    profile.cv.originalName = newName.endsWith('.pdf') ? newName : newName + '.pdf';
     await profile.save();
     res.json({ message: 'CV renommé', cv: profile.cv });
   } catch (error) {
@@ -230,9 +190,8 @@ router.put('/cv/rename', authMiddleware, async (req, res) => {
 router.delete('/cv', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.cv && profile.cv.path) {
-      const oldPath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (profile.cv && profile.cv.publicId) {
+      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
     }
     profile.cv = null;
     await profile.save();
@@ -246,26 +205,18 @@ router.delete('/cv', authMiddleware, async (req, res) => {
 router.get('/cv/download', async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (!profile.cv) return res.status(404).json({ message: 'Aucun CV disponible' });
-    const filePath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
-    res.download(filePath, profile.cv.originalName);
+    if (!profile.cv || !profile.cv.path) {
+      return res.status(404).json({ message: 'Aucun CV disponible' });
+    }
+    const axios = require('axios');
+    const response = await axios.get(profile.cv.path, { responseType: 'stream' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${profile.cv.originalName}"`);
+    response.data.pipe(res);
   } catch (error) {
+    console.error('GET /cv/download:', error.message);
     res.status(500).json({ message: error.message });
   }
-});
-
-// ===== MULTER IMAGE EXPÉRIENCE → CLOUDINARY =====
-const expImageStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'portfolio/experiences',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 1200, height: 750, crop: 'fill' }]
-  }
-});
-const uploadExpImageMW = multer({
-  storage: expImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 // ===== POST ajouter une image à une expérience =====
@@ -305,7 +256,6 @@ router.delete('/experiences/:expIndex/image/:imgIndex', authMiddleware, async (r
     const img = exp.images[imgIdx];
     if (img.publicId) {
       await cloudinary.uploader.destroy(img.publicId);
-      console.log('✅ Image Cloudinary supprimée:', img.publicId);
     }
     exp.images.splice(imgIdx, 1);
     profile.markModified('experiences');
