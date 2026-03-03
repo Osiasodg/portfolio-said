@@ -323,12 +323,12 @@ const AdminPanel = () => {
     }
   };
 
-  // ===== IMAGE EXPÉRIENCE =====
-  const handleExpImageUpload = async (expIndex, file) => {
+  // ===== IMAGE PROJET =====
+  const handleProjectImageUpload = async (projectId, file) => {
     const formData = new FormData();
     formData.append('image', file);
     try {
-      await api.post(`/profile/experiences/${expIndex}/image`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post(`/projects/${projectId}/image`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       alert('✅ Image ajoutée !');
       loadData();
     } catch (err) {
@@ -336,10 +336,10 @@ const AdminPanel = () => {
     }
   };
 
-  const handleExpImageDelete = async (expIndex, imgIndex) => {
+  const handleProjectImageDelete = async (projectId, imageIndex) => {
     if (!window.confirm('Supprimer cette image ?')) return;
     try {
-      await api.delete(`/profile/experiences/${expIndex}/image/${imgIndex}`);
+      await api.delete(`/projects/${projectId}/image/${imageIndex}`);
       alert('✅ Image supprimée');
       loadData();
     } catch { alert('Erreur suppression image'); }
@@ -458,7 +458,7 @@ const AdminPanel = () => {
     { id: 'cv', label: '📄 Mon CV' },
   ];
 
-  const currentPhoto = photoPreview || (profile?.photoUrl ? `${API_URL}${profile.photoUrl}` : null);
+  const currentPhoto = photoPreview || (profile?.photoUrl ? profile.photoUrl : null);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -709,27 +709,62 @@ const AdminPanel = () => {
             </div>
             <div>
               <h3 className="font-semibold mb-3">📋 Projets ({projects.length})</h3>
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
                 {projects.length === 0 && <p className="text-slate-500 text-sm">Aucun projet.</p>}
-                {projects.map(p => (
-                  <div key={p._id} className="bg-slate-800 p-4 rounded-xl flex justify-between items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm">{p.title}</h4>
-                      <p className="text-slate-400 text-xs mt-1 truncate">{p.description}</p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {p.technologies.map(t => (
-                          <span key={t} className="bg-slate-700 text-blue-300 text-xs px-2 py-0.5 rounded">{t}</span>
+                {projects.map(p => {
+                  const imgs = p.images && p.images.length > 0
+                    ? p.images
+                    : p.imageUrl ? [{ url: p.imageUrl, publicId: p.imagePublicId }] : [];
+                  return (
+                    <div key={p._id} className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+                      {/* Galerie miniatures + bouton ajouter */}
+                      <div className="flex gap-2 p-3 bg-slate-900/40 overflow-x-auto min-h-[72px] items-center">
+                        {imgs.map((img, idx) => (
+                          <div key={idx} className="relative shrink-0 group/img">
+                            <img
+                              src={img.url}
+                              alt={`img ${idx + 1}`}
+                              className="w-20 h-14 object-cover rounded-lg border border-slate-600"
+                            />
+                            <button
+                              onClick={() => handleProjectImageDelete(p._id, idx)}
+                              className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity shadow"
+                            >✕</button>
+                          </div>
                         ))}
+                        {/* Bouton ajouter une image */}
+                        <label className="shrink-0 w-20 h-14 border-2 border-dashed border-slate-500 hover:border-blue-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors gap-0.5">
+                          <span className="text-slate-400 text-lg leading-none">+</span>
+                          <span className="text-slate-500 text-xs">image</span>
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={e => { if (e.target.files[0]) handleProjectImageUpload(p._id, e.target.files[0]); e.target.value = ''; }} />
+                        </label>
+                      </div>
+
+                      {/* Infos */}
+                      <div className="p-4 flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm">{p.title}</h4>
+                          <p className="text-slate-400 text-xs mt-1 line-clamp-2">{p.description}</p>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {p.technologies.map(t => (
+                              <span key={t} className="bg-slate-700 text-blue-300 text-xs px-2 py-0.5 rounded">{t}</span>
+                            ))}
+                          </div>
+                          <p className="text-slate-500 text-xs mt-1.5">{imgs.length} image{imgs.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => { setProjectForm({ title: p.title, description: p.description, technologies: p.technologies.join(', '), githubUrl: p.githubUrl || '', liveUrl: p.liveUrl || '' }); setEditingProjectId(p._id); }}
+                            className={btnGray}>✏️</button>
+                          <button
+                            onClick={async () => { if (window.confirm('Supprimer ce projet et toutes ses images ?')) { await deleteProject(p._id); loadData(); } }}
+                            className={btnRed}>🗑️</button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={() => { setProjectForm({ title: p.title, description: p.description, technologies: p.technologies.join(', '), githubUrl: p.githubUrl || '', liveUrl: p.liveUrl || '' }); setEditingProjectId(p._id); }}
-                        className={btnGray}>✏️</button>
-                      <button onClick={async () => { if (window.confirm('Supprimer ?')) { await deleteProject(p._id); loadData(); } }}
-                        className={btnRed}>🗑️</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -793,45 +828,18 @@ const AdminPanel = () => {
                 <button onClick={handleSaveExperiences} className={btnBlue}>💾 Sauvegarder</button>
               </div>
               <div className="space-y-3">
-                {experiences.map((e, i) => {
-                  const imgs = e.images && e.images.length > 0 ? e.images : [];
-                  return (
-                    <div key={i} className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
-                      {/* Galerie miniatures */}
-                      <div className="flex gap-2 p-3 bg-slate-900/40 overflow-x-auto min-h-[60px] items-center">
-                        {imgs.map((img, idx) => (
-                          <div key={idx} className="relative shrink-0 group/img">
-                            <img src={img.url} alt={`img ${idx + 1}`}
-                              className="w-16 h-12 object-cover rounded-lg border border-slate-600" />
-                            <button
-                              onClick={() => handleExpImageDelete(i, idx)}
-                              className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity shadow">
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                        <label className="shrink-0 w-16 h-12 border-2 border-dashed border-slate-500 hover:border-blue-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors">
-                          <span className="text-slate-400 text-base leading-none">+</span>
-                          <span className="text-slate-500 text-xs">image</span>
-                          <input type="file" accept="image/*" className="hidden"
-                            onChange={ev => { if (ev.target.files[0]) handleExpImageUpload(i, ev.target.files[0]); ev.target.value = ''; }} />
-                        </label>
-                      </div>
-                      {/* Infos */}
-                      <div className="p-3 flex justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-sm">{e.title}</p>
-                          <p className="text-blue-400 text-xs">{e.company} · {e.period}</p>
-                          {imgs.length > 0 && <p className="text-slate-500 text-xs mt-1">{imgs.length} image{imgs.length > 1 ? 's' : ''}</p>}
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <button onClick={() => { setExpForm({ ...e, tech: (e.tech || []).join(', ') }); setEditingExpIdx(i); }} className={btnGray}>✏️</button>
-                          <button onClick={() => setExperiences(experiences.filter((_, j) => j !== i))} className={btnRed}>🗑️</button>
-                        </div>
-                      </div>
+                {experiences.map((e, i) => (
+                  <div key={i} className="bg-slate-800 p-4 rounded-xl flex justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-sm">{e.title}</p>
+                      <p className="text-blue-400 text-xs">{e.company} · {e.period}</p>
                     </div>
-                  );
-                })}
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => { setExpForm({ ...e, tech: (e.tech || []).join(', ') }); setEditingExpIdx(i); }} className={btnGray}>✏️</button>
+                      <button onClick={() => setExperiences(experiences.filter((_, j) => j !== i))} className={btnRed}>🗑️</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
