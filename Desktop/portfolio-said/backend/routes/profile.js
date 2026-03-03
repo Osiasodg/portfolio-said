@@ -1,49 +1,55 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
+const path = require('path');
+const fs = require('fs');
 const Profile = require('../models/Profile');
 const authMiddleware = require('../middleware/auth');
 
-// ===== CONFIG CLOUDINARY =====
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// ===== MULTER PHOTO → CLOUDINARY =====
-const photoStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'portfolio/photos',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }]
+// Config multer photo
+const photoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'uploads/photos/';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `photo_${Date.now()}${path.extname(file.originalname)}`);
   }
 });
 
-const uploadPhotoMW = multer({
+const uploadPhoto = multer({
   storage: photoStorage,
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Image uniquement (jpg, png, webp)'));
+  },
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-// ===== MULTER CV → CLOUDINARY =====
-const cvStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'portfolio/cv',
-    allowed_formats: ['pdf'],
-    resource_type: 'raw'
+// Config multer CV
+const cvStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'uploads/cv/';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `cv_${Date.now()}${path.extname(file.originalname)}`);
   }
 });
 
-const uploadCvMW = multer({
+const uploadCv = multer({
   storage: cvStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('PDF uniquement'));
+  },
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// ===== INIT PROFIL =====
+// Initialiser ou récupérer le profil
 const getOrCreateProfile = async () => {
   let profile = await Profile.findOne();
   if (!profile) {
@@ -103,7 +109,6 @@ const getOrCreateProfile = async () => {
       ]
     });
     await profile.save();
-    console.log('✅ Profil créé en base de données');
   }
   return profile;
 };
@@ -133,28 +138,32 @@ router.put('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST photo → Cloudinary =====
-router.post('/photo', authMiddleware, uploadPhotoMW.single('photo'), async (req, res) => {
+// ===== POST photo =====
+router.post('/photo', authMiddleware, uploadPhoto.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
 
     const profile = await getOrCreateProfile();
 
-    // Supprimer ancienne photo sur Cloudinary
-    if (profile.photoPublicId) {
-      await cloudinary.uploader.destroy(profile.photoPublicId);
-      console.log('🗑️ Ancienne photo supprimée de Cloudinary');
+    // Supprimer l'ancienne photo si elle existe
+    if (profile.photoUrl) {
+      const oldPath = path.join(__dirname, '..', profile.photoUrl.replace(/^\//, ''));
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
     }
 
-    // req.file.path = URL Cloudinary directe
-    profile.photoUrl = req.file.path;
-    profile.photoPublicId = req.file.filename;
+    // Sauvegarder le chemin correct avec /
+    const photoPath = '/uploads/photos/' + req.file.filename;
+    profile.photoUrl = photoPath;
     await profile.save();
 
-    console.log('✅ Photo uploadée sur Cloudinary:', req.file.path);
-    res.json({ message: 'Photo uploadée', photoUrl: req.file.path });
+    res.json({ 
+      message: 'Photo uploadée avec succès',
+      photoUrl: photoPath 
+    });
   } catch (error) {
-    console.error('POST /photo:', error.message);
+    console.error('Erreur photo:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -163,11 +172,11 @@ router.post('/photo', authMiddleware, uploadPhotoMW.single('photo'), async (req,
 router.delete('/photo', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.photoPublicId) {
-      await cloudinary.uploader.destroy(profile.photoPublicId);
+    if (profile.photoUrl) {
+      const oldPath = path.join(__dirname, '..', profile.photoUrl.replace(/^\//, ''));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
     profile.photoUrl = '';
-    profile.photoPublicId = '';
     await profile.save();
     res.json({ message: 'Photo supprimée' });
   } catch (error) {
@@ -175,47 +184,41 @@ router.delete('/photo', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST CV → Cloudinary =====
-router.post('/cv', authMiddleware, uploadCvMW.single('cv'), async (req, res) => {
+// ===== POST CV upload =====
+router.post('/cv', authMiddleware, uploadCv.single('cv'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
 
     const profile = await getOrCreateProfile();
 
-    // Supprimer ancien CV sur Cloudinary
-    if (profile.cv && profile.cv.publicId) {
-      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
-      console.log('🗑️ Ancien CV supprimé de Cloudinary');
+    // Supprimer l'ancien CV si il existe
+    if (profile.cv && profile.cv.path) {
+      const oldPath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 
     const cvData = {
       filename: req.file.filename,
-      originalName: req.body.customName
-        ? (req.body.customName.endsWith('.pdf') ? req.body.customName : req.body.customName + '.pdf')
-        : req.file.originalname,
-      path: req.file.path, // URL Cloudinary
-      publicId: req.file.filename.replace(/\s/g, ''),
+      originalName: req.body.customName || req.file.originalname,
+      path: '/uploads/cv/' + req.file.filename,
       uploadedAt: new Date()
     };
 
     profile.cv = cvData;
     await profile.save();
 
-    console.log('✅ CV uploadé sur Cloudinary:', cvData.path);
-    res.json({ message: 'CV uploadé', cv: cvData });
+    res.json({ message: 'CV uploadé avec succès', cv: cvData });
   } catch (error) {
-    console.error('POST /cv:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ===== PUT renommer CV =====
+// ===== PUT renommer le CV =====
 router.put('/cv/rename', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
     if (!profile.cv) return res.status(404).json({ message: 'Aucun CV trouvé' });
-    const newName = req.body.name;
-    profile.cv.originalName = newName.endsWith('.pdf') ? newName : newName + '.pdf';
+    profile.cv.originalName = req.body.name;
     await profile.save();
     res.json({ message: 'CV renommé', cv: profile.cv });
   } catch (error) {
@@ -227,8 +230,9 @@ router.put('/cv/rename', authMiddleware, async (req, res) => {
 router.delete('/cv', authMiddleware, async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (profile.cv && profile.cv.publicId) {
-      await cloudinary.uploader.destroy(profile.cv.publicId, { resource_type: 'raw' });
+    if (profile.cv && profile.cv.path) {
+      const oldPath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
     profile.cv = null;
     await profile.save();
@@ -239,21 +243,75 @@ router.delete('/cv', authMiddleware, async (req, res) => {
 });
 
 // ===== GET télécharger CV =====
-// Avec Cloudinary, le CV est accessible directement via son URL
-// Cette route redirige vers l'URL Cloudinary
 router.get('/cv/download', async (req, res) => {
   try {
     const profile = await getOrCreateProfile();
-    if (!profile.cv || !profile.cv.path) {
-      return res.status(404).json({ message: 'Aucun CV disponible' });
-    }
-    const axios = require('axios');
-    const response = await axios.get(profile.cv.path, { responseType: 'stream' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${profile.cv.originalName}"`);
-    response.data.pipe(res);
+    if (!profile.cv) return res.status(404).json({ message: 'Aucun CV disponible' });
+    const filePath = path.join(__dirname, '..', profile.cv.path.replace(/^\//, ''));
+    res.download(filePath, profile.cv.originalName);
   } catch (error) {
-    console.error('GET /cv/download:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ===== MULTER IMAGE EXPÉRIENCE → CLOUDINARY =====
+const expImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'portfolio/experiences',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1200, height: 750, crop: 'fill' }]
+  }
+});
+const uploadExpImageMW = multer({
+  storage: expImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+// ===== POST ajouter une image à une expérience =====
+router.post('/experiences/:expIndex/image', authMiddleware, uploadExpImageMW.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
+    const profile = await getOrCreateProfile();
+    const idx = parseInt(req.params.expIndex);
+    if (idx < 0 || idx >= profile.experiences.length) {
+      return res.status(404).json({ message: 'Expérience non trouvée' });
+    }
+    if (!profile.experiences[idx].images) profile.experiences[idx].images = [];
+    profile.experiences[idx].images.push({ url: req.file.path, publicId: req.file.filename });
+    profile.markModified('experiences');
+    await profile.save();
+    console.log('✅ Image expérience ajoutée:', req.file.path);
+    res.json({ message: 'Image ajoutée', experience: profile.experiences[idx] });
+  } catch (error) {
+    console.error('POST /experiences/:expIndex/image:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ===== DELETE supprimer une image d'une expérience =====
+router.delete('/experiences/:expIndex/image/:imgIndex', authMiddleware, async (req, res) => {
+  try {
+    const profile = await getOrCreateProfile();
+    const expIdx = parseInt(req.params.expIndex);
+    const imgIdx = parseInt(req.params.imgIndex);
+    if (expIdx < 0 || expIdx >= profile.experiences.length) {
+      return res.status(404).json({ message: 'Expérience non trouvée' });
+    }
+    const exp = profile.experiences[expIdx];
+    if (!exp.images || imgIdx < 0 || imgIdx >= exp.images.length) {
+      return res.status(404).json({ message: 'Image non trouvée' });
+    }
+    const img = exp.images[imgIdx];
+    if (img.publicId) {
+      await cloudinary.uploader.destroy(img.publicId);
+      console.log('✅ Image Cloudinary supprimée:', img.publicId);
+    }
+    exp.images.splice(imgIdx, 1);
+    profile.markModified('experiences');
+    await profile.save();
+    res.json({ message: 'Image supprimée', experience: exp });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
