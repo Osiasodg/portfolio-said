@@ -1,5 +1,3 @@
-// CRUD complet pour tes projets :
-
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -8,20 +6,18 @@ const cloudinary = require('cloudinary').v2;
 const Project = require('../models/Project');
 const authMiddleware = require('../middleware/auth');
 
-// ===== CONFIG CLOUDINARY =====
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// ===== MULTER IMAGE PROJET → CLOUDINARY =====
 const projectImageStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'portfolio/projects',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 800, height: 500, crop: 'fill' }]
+    transformation: [{ width: 1200, height: 750, crop: 'fill' }]
   }
 });
 
@@ -30,7 +26,7 @@ const uploadImageMW = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-// ===== GET tous les projets (public) =====
+// GET tous les projets (public)
 router.get('/', async (req, res) => {
   try {
     const projects = await Project.find().sort({ order: 1, createdAt: -1 });
@@ -40,7 +36,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ===== POST créer un projet (admin) =====
+// POST créer un projet
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const project = new Project(req.body);
@@ -51,7 +47,7 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== PUT modifier un projet (admin) =====
+// PUT modifier un projet
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const updated = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -62,7 +58,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ===== POST upload image d'un projet → Cloudinary =====
+// POST ajouter UNE image à un projet (plusieurs images possibles)
 router.post('/:id/image', authMiddleware, uploadImageMW.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu' });
@@ -70,52 +66,71 @@ router.post('/:id/image', authMiddleware, uploadImageMW.single('image'), async (
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Projet non trouvé' });
 
-    // Supprimer ancienne image sur Cloudinary
-    if (project.imagePublicId) {
-      await cloudinary.uploader.destroy(project.imagePublicId);
-      console.log(' Ancienne image projet supprimée');
+    if (!project.images) project.images = [];
+
+    project.images.push({
+      url: req.file.path,
+      publicId: req.file.filename
+    });
+
+    // Compatibilité legacy : première image
+    if (project.images.length === 1) {
+      project.imageUrl = req.file.path;
+      project.imagePublicId = req.file.filename;
     }
 
-    project.imageUrl = req.file.path;
-    project.imagePublicId = req.file.filename;
     await project.save();
-
-    console.log(' Image projet uploadée:', req.file.path);
-    res.json({ message: 'Image uploadée', imageUrl: req.file.path });
+    console.log(' Image ajoutée:', req.file.path);
+    res.json({ message: 'Image ajoutée', project });
   } catch (error) {
     console.error('POST /:id/image:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ===== DELETE image d'un projet =====
-router.delete('/:id/image', authMiddleware, async (req, res) => {
+// DELETE supprimer UNE image par son index
+router.delete('/:id/image/:imageIndex', authMiddleware, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Projet non trouvé' });
 
-    if (project.imagePublicId) {
-      await cloudinary.uploader.destroy(project.imagePublicId);
+    const idx = parseInt(req.params.imageIndex);
+    if (!project.images || idx < 0 || idx >= project.images.length) {
+      return res.status(404).json({ message: 'Image non trouvée' });
     }
 
-    project.imageUrl = '';
-    project.imagePublicId = '';
-    await project.save();
+    // Supprimer sur Cloudinary
+    const img = project.images[idx];
+    if (img.publicId) {
+      await cloudinary.uploader.destroy(img.publicId);
+      console.log(' Image Cloudinary supprimée:', img.publicId);
+    }
 
-    res.json({ message: 'Image supprimée' });
+    project.images.splice(idx, 1);
+
+    // Mettre à jour le legacy imageUrl
+    project.imageUrl = project.images.length > 0 ? project.images[0].url : '';
+    project.imagePublicId = project.images.length > 0 ? project.images[0].publicId : '';
+
+    await project.save();
+    res.json({ message: 'Image supprimée', project });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// ===== DELETE supprimer un projet (admin) =====
+// DELETE supprimer un projet entier + toutes ses images
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Projet non trouvé' });
 
-    // Supprimer l'image Cloudinary si elle existe
-    if (project.imagePublicId) {
+    // Supprimer toutes les images Cloudinary
+    if (project.images && project.images.length > 0) {
+      for (const img of project.images) {
+        if (img.publicId) await cloudinary.uploader.destroy(img.publicId);
+      }
+    } else if (project.imagePublicId) {
       await cloudinary.uploader.destroy(project.imagePublicId);
     }
 
