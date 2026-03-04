@@ -19,30 +19,18 @@ const ImageModal = ({ images, title, onClose }) => {
       onClick={onClose}>
       <div className="bg-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-700">
           <h3 className="text-white font-bold text-base">{title}</h3>
           <button onClick={onClose}
-            className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 transition-colors text-xl">
-            ✕
-          </button>
+            className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 transition-colors text-xl">✕</button>
         </div>
-
-        {/* Image principale */}
         <div className="relative bg-slate-900 select-none">
           <img src={images[current].url} alt={`${title} - ${current + 1}`}
             className="w-full h-80 object-contain" />
           {images.length > 1 && (
             <>
-              <button onClick={prev}
-                className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl transition-colors">
-                ‹
-              </button>
-              <button onClick={next}
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl transition-colors">
-                ›
-              </button>
+              <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl transition-colors">‹</button>
+              <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white w-10 h-10 rounded-full flex items-center justify-center text-xl transition-colors">›</button>
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
                 {images.map((_, i) => (
                   <button key={i} onClick={e => { e.stopPropagation(); setCurrent(i); }}
@@ -55,8 +43,6 @@ const ImageModal = ({ images, title, onClose }) => {
             </>
           )}
         </div>
-
-        {/* Miniatures */}
         {images.length > 1 && (
           <div className="flex gap-2 p-3 overflow-x-auto bg-slate-900/50">
             {images.map((img, i) => (
@@ -105,20 +91,28 @@ const Experience = () => {
                     <p className="text-blue-300 text-sm">{exp.period}</p>
                     <h4 className="text-white font-bold">{exp.title}</h4>
                     <p className="text-slate-400 text-sm">{exp.company} · {exp.location}</p>
-                    <p className="text-slate-300 text-sm mt-2">{exp.description}</p>
+                    <p className="text-slate-300 text-sm mt-2 whitespace-pre-line">{exp.description}</p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {(exp.tech || []).map(t => (
                         <span key={t} className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">{t}</span>
                       ))}
                     </div>
-                    {/* Bouton "Voir les captures" si images présentes */}
-                    {imgs.length > 0 && (
-                      <button
-                        onClick={() => setModalData({ images: imgs, title: `${exp.title} — ${exp.company}` })}
-                        className="mt-3 inline-flex items-center gap-2 bg-blue-400/10 hover:bg-blue-400/20 border border-blue-400/30 hover:border-blue-400/60 text-blue-400 hover:text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
-                        🖼️ Voir {imgs.length > 1 ? `les ${imgs.length} captures` : 'la capture'} →
-                      </button>
-                    )}
+                    {/* Liens */}
+                    <div className="flex flex-wrap gap-3 mt-3">
+                      {exp.url && (
+                        <a href={exp.url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-blue-400/10 hover:bg-blue-400/20 border border-blue-400/30 hover:border-blue-400/60 text-blue-400 hover:text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                          🔗 Voir le site →
+                        </a>
+                      )}
+                      {imgs.length > 0 && (
+                        <button
+                          onClick={() => setModalData({ images: imgs, title: `${exp.title} — ${exp.company}` })}
+                          className="inline-flex items-center gap-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                          🖼️ Voir {imgs.length > 1 ? `les ${imgs.length} captures` : 'la capture'} →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -135,7 +129,14 @@ const Experience = () => {
                   <p className="text-slate-400 text-sm">{form.period}</p>
                   <h4 className="text-white font-bold">{form.title}</h4>
                   <p className="text-blue-300 text-sm">{form.school} – {form.location}</p>
-                  <p className="text-slate-400 text-sm mt-1">{form.description}</p>
+                  <p className="text-slate-400 text-sm mt-1 whitespace-pre-line">{form.description}</p>
+                  {/* Lien école */}
+                  {form.url && (
+                    <a href={form.url} target="_blank" rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 bg-blue-400/10 hover:bg-blue-400/20 border border-blue-400/30 hover:border-blue-400/60 text-blue-400 hover:text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                      🔗 Voir le site →
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
